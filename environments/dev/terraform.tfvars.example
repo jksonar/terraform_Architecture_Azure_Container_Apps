@@ -1,0 +1,27 @@
+environment = "dev"
+prefix      = "aca"
+location    = "eastus2"
+
+tags = {
+  owner   = "jksonar@gmail.com"
+  project = "container-apps-baseline"
+}
+
+vnet_address_space              = ["10.10.0.0/16"]
+appgw_subnet_prefix             = "10.10.0.0/24"
+container_apps_subnet_prefix    = "10.10.2.0/23"
+private_endpoints_subnet_prefix = "10.10.4.0/24"
+
+container_app_environment_workload_profile = true
+container_image                            = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+
+container_app_min_replicas = 1
+container_app_max_replicas = 2
+
+acr_sku    = "Premium"
+enable_waf = false # relax in dev to save cost; enable for staging/prod
+
+appgw_min_capacity = 1
+appgw_max_capacity = 2
+
+log_analytics_retention_days = 30
