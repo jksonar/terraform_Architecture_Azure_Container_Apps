@@ -3,10 +3,10 @@
 # with the same options instead so every developer stays in sync.
 terraform {
   backend "azurerm" {
-    resource_group_name  = "rg-terraform-state"
+    resource_group_name  = "rg-terraform-state-dev"
     storage_account_name = "sttfstate369d94e0"
-    container_name        = "tfstate"
-    key                    = "terraform.tfstate"
-    use_azuread_auth       = true
+    container_name       = "tfstate"
+    key                  = "terraform.tfstate"
+    use_azuread_auth     = true
   }
 }

@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}My Task Lists — TaskFlow{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="mb-0">My Task Lists</h2>
+  <a href="{% url 'tasks:list-create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>New List
+  </a>
+</div>
+
+{% if task_lists %}
+  <div class="row g-3">
+    {% for tl in task_lists %}
+      <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="card-title">
+              <a href="{{ tl.get_absolute_url }}" class="text-decoration-none text-dark">{{ tl.name }}</a>
+            </h5>
+            {% if tl.description %}
+              <p class="card-text text-muted small">{{ tl.description }}</p>
+            {% endif %}
+            <div class="d-flex justify-content-between text-muted small mb-2">
+              <span>{{ tl.open_task_count }} open</span>
+              <span>{{ tl.total_task_count }} total</span>
+              <span>{{ tl.completion_percentage }}%</span>
+            </div>
+            <div class="progress" style="height:6px;">
+              <div class="progress-bar bg-success" style="width:{{ tl.completion_percentage }}%"></div>
+            </div>
+          </div>
+          <div class="card-footer bg-transparent d-flex justify-content-between">
+            <a href="{{ tl.get_absolute_url }}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-eye me-1"></i>View
+            </a>
+            <div>
+              <a href="{% url 'tasks:list-update' tl.pk %}" class="btn btn-sm btn-outline-secondary me-1">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <a href="{% url 'tasks:list-delete' tl.pk %}" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="text-center py-5">
+    <i class="bi bi-clipboard2 display-1 text-muted"></i>
+    <p class="lead text-muted mt-3">You have no task lists yet.</p>
+    <a href="{% url 'tasks:list-create' %}" class="btn btn-primary">
+      <i class="bi bi-plus-lg me-1"></i>Create your first list
+    </a>
+  </div>
+{% endif %}
+{% endblock %}

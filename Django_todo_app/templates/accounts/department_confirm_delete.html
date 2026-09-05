@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Delete {{ object.name }} — TaskFlow{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card shadow-sm border-danger">
+      <div class="card-header bg-danger text-white fw-semibold">Confirm Deletion</div>
+      <div class="card-body">
+        <p class="mb-3">
+          Are you sure you want to delete department <strong>{{ object.name }}</strong>?
+          This will remove all member associations (members are not deleted).
+        </p>
+        <form method="post">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash me-1"></i>Delete
+          </button>
+          <a href="{% url 'accounts:department-list' %}" class="btn btn-outline-secondary ms-2">Cancel</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

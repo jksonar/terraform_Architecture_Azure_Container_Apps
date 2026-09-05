@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load task_extras %}
+
+{% block title %}Manager Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Manager Dashboard</h2>
+    {% if department %}<p class="text-muted mb-0">{{ department.name }} Department</p>{% endif %}
+  </div>
+  <a href="{% url 'tasks:task-create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>New Task
+  </a>
+</div>
+
+<!-- Stat Cards -->
+<div class="row row-cols-2 row-cols-md-4 g-3 mb-4">
+  {% include 'tasks/partials/_stat_card.html' with value=team_members.count label="Team Members" color="primary" %}
+  {% include 'tasks/partials/_stat_card.html' with value=assigned_tasks_count label="Active Tasks" color="info" %}
+  {% include 'tasks/partials/_stat_card.html' with value=completed_tasks label="Completed" color="success" %}
+  {% include 'tasks/partials/_stat_card.html' with value=pending_tasks label="Pending" color="warning" %}
+</div>
+
+<div class="row g-4">
+  <!-- Recent Tasks -->
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-task me-1"></i>Recent Department Tasks</span>
+        <a href="{% url 'tasks:task-list' %}" class="btn btn-sm btn-outline-secondary">View All</a>
+      </div>
+      <div class="card-body p-0">
+        {% if recent_tasks %}
+        <div class="table-responsive">
+          <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Title</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Assigned To</th>
+                <th>Due</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for task in recent_tasks %}
+              <tr>
+                <td><a href="{{ task.get_absolute_url }}">{{ task.title }}</a></td>
+                <td><span class="badge bg-{{ task.priority|priority_badge_class }}">{{ task.get_priority_display }}</span></td>
+                <td><span class="badge bg-{{ task.status|status_badge_class }}">{{ task.get_status_display }}</span></td>
+                <td>{% if task.assigned_to %}{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}{% else %}&mdash;{% endif %}</td>
+                <td>{% if task.due_date %}<small>{{ task.due_date }}</small>{% else %}&mdash;{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted p-3 mb-0">No tasks in this department yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Team Members -->
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold"><i class="bi bi-people me-1"></i>Team Members</div>
+      <ul class="list-group list-group-flush">
+        {% for member in team_members %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>{{ member.user.get_full_name|default:member.user.username }}</span>
+          <span class="badge bg-secondary">{{ member.role_display }}</span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No team members yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

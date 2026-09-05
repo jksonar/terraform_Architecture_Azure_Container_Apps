@@ -30,6 +30,11 @@ variable "private_endpoints_subnet_prefix" {
   type        = string
 }
 
+variable "postgresql_subnet_prefix" {
+  description = "Address prefix for the PostgreSQL Flexible Server delegated subnet."
+  type        = string
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

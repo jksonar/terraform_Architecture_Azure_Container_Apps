@@ -40,20 +40,23 @@ module "network" {
   appgw_subnet_prefix             = var.appgw_subnet_prefix
   container_apps_subnet_prefix    = var.container_apps_subnet_prefix
   private_endpoints_subnet_prefix = var.private_endpoints_subnet_prefix
+  postgresql_subnet_prefix        = var.postgresql_subnet_prefix
   tags                            = local.tags
 }
 
 module "nsg" {
   source = "../../modules/nsg"
 
-  name_prefix                 = local.name
-  resource_group_name         = azurerm_resource_group.this.name
-  location                    = azurerm_resource_group.this.location
-  appgw_subnet_id             = module.network.appgw_subnet_id
-  appgw_subnet_prefix         = var.appgw_subnet_prefix
-  container_apps_subnet_id    = module.network.container_apps_subnet_id
-  private_endpoints_subnet_id = module.network.private_endpoints_subnet_id
-  tags                        = local.tags
+  name_prefix                  = local.name
+  resource_group_name          = azurerm_resource_group.this.name
+  location                     = azurerm_resource_group.this.location
+  appgw_subnet_id              = module.network.appgw_subnet_id
+  appgw_subnet_prefix          = var.appgw_subnet_prefix
+  container_apps_subnet_id     = module.network.container_apps_subnet_id
+  container_apps_subnet_prefix = var.container_apps_subnet_prefix
+  private_endpoints_subnet_id  = module.network.private_endpoints_subnet_id
+  postgresql_subnet_id         = module.network.postgresql_subnet_id
+  tags                         = local.tags
 }
 
 module "keyvault" {
@@ -91,6 +94,25 @@ module "database" {
   tags                = local.tags
 }
 
+module "postgresql" {
+  source = "../../modules/postgresql"
+
+  name                         = "psql-${local.name}"
+  resource_group_name          = azurerm_resource_group.this.name
+  location                     = azurerm_resource_group.this.location
+  delegated_subnet_id          = module.network.postgresql_subnet_id
+  vnet_id                      = module.network.vnet_id
+  sku_name                     = var.postgresql_sku_name
+  storage_mb                   = var.postgresql_storage_mb
+  postgresql_version           = var.postgresql_version
+  administrator_login          = var.postgresql_administrator_login
+  database_name                = var.postgresql_database_name
+  backup_retention_days        = var.postgresql_backup_retention_days
+  geo_redundant_backup_enabled = var.postgresql_geo_redundant_backup_enabled
+  high_availability_enabled    = var.postgresql_high_availability_enabled
+  tags                         = local.tags
+}
+
 module "privateendpoints" {
   source = "../../modules/privateendpoints"
 
@@ -103,6 +125,8 @@ module "privateendpoints" {
   key_vault_id          = module.keyvault.id
   cosmosdb_account_id   = module.database.id
   tags                  = local.tags
+
+  enable_acr_private_endpoint = var.acr_private_endpoint_enabled
 }
 
 # User-assigned identity the Container App runs as. Created at root (not in

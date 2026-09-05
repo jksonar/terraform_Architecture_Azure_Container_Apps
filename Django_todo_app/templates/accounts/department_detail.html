@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}{{ department.name }} — TaskFlow{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'accounts:department-list' %}">Departments</a></li>
+    <li class="breadcrumb-item active">{{ department.name }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <h2 class="mb-1"><i class="bi bi-building me-2"></i>{{ department.name }}</h2>
+    {% if department.description %}
+      <p class="text-muted">{{ department.description }}</p>
+    {% endif %}
+  </div>
+  {% if request.user.is_staff %}
+    <div class="d-flex gap-2">
+      <a href="{% url 'accounts:department-update' department.pk %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-pencil me-1"></i>Edit
+      </a>
+      <a href="{% url 'accounts:department-delete' department.pk %}" class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-trash me-1"></i>Delete
+      </a>
+    </div>
+  {% endif %}
+</div>
+
+<!-- Hierarchy Legend -->
+<div class="mb-3">
+  <span class="badge bg-danger me-1">Senior Manager</span>
+  <span class="badge bg-warning text-dark me-1">Manager</span>
+  <span class="badge bg-info text-dark me-1">Team Lead</span>
+  <span class="badge bg-secondary me-1">Employee</span>
+</div>
+
+{% if department.members.all %}
+  {% include 'accounts/_member_tree.html' with members=root_members indent=0 %}
+{% else %}
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-people display-3"></i>
+    <p class="mt-2">No members in this department yet.</p>
+    {% if request.user.is_staff %}
+      <p class="small">Use the admin panel or assign department to users from their profile.</p>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}Delete Task — TaskFlow{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-5">
+    <div class="card border-danger shadow-sm">
+      <div class="card-header bg-danger text-white">
+        <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Delete Task</h5>
+      </div>
+      <div class="card-body">
+        <p>Are you sure you want to delete <strong>"{{ object.title }}"</strong>?</p>
+        {% if not object.is_subtask %}
+          {% with count=object.subtasks.count %}
+            {% if count %}
+              <p class="text-muted">This will also delete {{ count }} sub-task(s).</p>
+            {% endif %}
+          {% endwith %}
+        {% endif %}
+        <form method="post">
+          {% csrf_token %}
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-danger">Yes, delete</button>
+            {% if object.is_subtask %}
+              <a href="{{ object.parent.get_absolute_url }}" class="btn btn-outline-secondary">Cancel</a>
+            {% else %}
+              <a href="{{ object.task_list.get_absolute_url }}" class="btn btn-outline-secondary">Cancel</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

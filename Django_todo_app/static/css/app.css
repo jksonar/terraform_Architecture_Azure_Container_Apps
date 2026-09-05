@@ -1,0 +1,15 @@
+/* Priority left-border accents */
+.task-card { border-left: 4px solid transparent; }
+.task-card-urgent  { border-left-color: #dc3545; }
+.task-card-high    { border-left-color: #ffc107; }
+.task-card-medium  { border-left-color: #0dcaf0; }
+.task-card-low     { border-left-color: #6c757d; }
+
+/* Completed task strikethrough */
+.task-complete .task-title {
+    text-decoration: line-through;
+    color: #6c757d !important;
+}
+
+/* Progress bar default height */
+.progress { height: 6px; }

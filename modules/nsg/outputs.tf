@@ -9,3 +9,7 @@ output "container_apps_nsg_id" {
 output "private_endpoints_nsg_id" {
   value = azurerm_network_security_group.private_endpoints.id
 }
+
+output "postgresql_nsg_id" {
+  value = azurerm_network_security_group.postgresql.id
+}
