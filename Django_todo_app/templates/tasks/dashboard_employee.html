@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load task_extras %}
+
+{% block title %}My Dashboard{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h2 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>My Dashboard</h2>
+  <p class="text-muted mb-0">Welcome back, {{ request.user.get_full_name|default:request.user.username }}</p>
+</div>
+
+<!-- Stat Cards -->
+<div class="row row-cols-2 row-cols-md-5 g-3 mb-4">
+  {% include 'tasks/partials/_stat_card.html' with value=total label="My Tasks" color="primary" %}
+  {% include 'tasks/partials/_stat_card.html' with value=due_today label="Due Today" color="danger" %}
+  {% include 'tasks/partials/_stat_card.html' with value=pending label="Pending" color="warning" %}
+  {% include 'tasks/partials/_stat_card.html' with value=in_progress label="In Progress" color="info" %}
+  {% include 'tasks/partials/_stat_card.html' with value=completed label="Completed" color="success" %}
+</div>
+
+<!-- Task list -->
+<div class="card shadow-sm">
+  <div class="card-header fw-semibold"><i class="bi bi-list-task me-1"></i>My Tasks</div>
+  <div class="card-body p-0">
+    {% if tasks %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Title</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>Due</th>
+            <th>Update Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for task in tasks %}
+          <tr class="{% if task.status == 'completed' %}table-success{% elif task.status == 'not_completed' %}table-danger{% endif %}">
+            <td><a href="{{ task.get_absolute_url }}">{{ task.title }}</a></td>
+            <td><span class="badge bg-{{ task.priority|priority_badge_class }}">{{ task.get_priority_display }}</span></td>
+            <td><span class="badge bg-{{ task.status|status_badge_class }}">{{ task.get_status_display }}</span></td>
+            <td>
+              {% if task.due_date %}
+                <small class="{% if task.due_date < today %}text-danger fw-semibold{% endif %}">{{ task.due_date }}</small>
+              {% else %}&mdash;{% endif %}
+            </td>
+            <td>
+              <form method="post" action="{% url 'tasks:task-update-status' task.pk %}" class="d-flex gap-1 align-items-center">
+                {% csrf_token %}
+                <select name="status" class="form-select form-select-sm" style="width:auto">
+                  {% for val, label in status_choices %}
+                  <option value="{{ val }}" {% if task.status == val %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-sm btn-outline-primary">
+                  <i class="bi bi-check2"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted p-3 mb-0">No tasks assigned to you yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+

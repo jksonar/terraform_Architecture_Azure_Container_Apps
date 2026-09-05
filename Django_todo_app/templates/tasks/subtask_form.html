@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}New Sub-task — TaskFlow{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'tasks:list-index' %}">My Lists</a></li>
+    <li class="breadcrumb-item"><a href="{{ parent_task.task_list.get_absolute_url }}">{{ parent_task.task_list.name }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ parent_task.get_absolute_url }}">{{ parent_task.title }}</a></li>
+    <li class="breadcrumb-item active">New Sub-task</li>
+  </ol>
+</nav>
+
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header">
+        <h5 class="mb-0">Add Sub-task to "{{ parent_task.title }}"</h5>
+      </div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">Add Sub-task</button>
+            <a href="{{ parent_task.get_absolute_url }}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

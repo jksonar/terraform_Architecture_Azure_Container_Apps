@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}New Task — TaskFlow{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'tasks:task-list' %}">Tasks</a></li>
+    {% if task_list %}
+      <li class="breadcrumb-item"><a href="{{ task_list.get_absolute_url }}">{{ task_list.name }}</a></li>
+    {% endif %}
+    <li class="breadcrumb-item active">New Task</li>
+  </ol>
+</nav>
+
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <div class="card shadow-sm">
+      <div class="card-header">
+        <h5 class="mb-0">New Task</h5>
+      </div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">Create Task</button>
+            <a href="{% if task_list %}{{ task_list.get_absolute_url }}{% else %}{% url 'tasks:task-list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

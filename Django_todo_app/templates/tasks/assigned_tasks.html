@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% load task_extras %}
+{% block title %}Assigned to Me — TaskFlow{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="mb-0"><i class="bi bi-person-check me-2"></i>Assigned to Me</h2>
+</div>
+
+<!-- Filters -->
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <form method="get" class="d-flex gap-2 flex-wrap">
+    <select name="priority" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+      <option value="">All priorities</option>
+      {% for val, label in priority_choices %}
+        <option value="{{ val }}" {% if current_priority == val|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="status" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+      <option value="">All statuses</option>
+      <option value="open" {% if current_status == "open" %}selected{% endif %}>Open</option>
+      <option value="done" {% if current_status == "done" %}selected{% endif %}>Done</option>
+    </select>
+    {% if current_priority or current_status %}
+      <a href="{% url 'tasks:assigned-tasks' %}" class="btn btn-sm btn-outline-secondary">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if tasks %}
+  <div class="list-group shadow-sm">
+    {% for task in tasks %}
+      <div class="list-group-item p-3 task-card task-card-{{ task.priority_css }} {% if task.is_complete %}task-complete{% endif %}">
+        <div class="d-flex justify-content-between align-items-start">
+          <div class="d-flex align-items-start gap-3 flex-grow-1">
+            <!-- Toggle button — assignee can always toggle -->
+            <form method="post" action="{% url 'tasks:task-toggle' task.pk %}" class="mt-1">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm p-0 border-0 bg-transparent"
+                      title="{% if task.is_complete %}Mark incomplete{% else %}Mark complete{% endif %}">
+                {% if task.is_complete %}
+                  <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                {% else %}
+                  <i class="bi bi-circle text-muted fs-5"></i>
+                {% endif %}
+              </button>
+            </form>
+            <div class="flex-grow-1">
+              <a href="{{ task.get_absolute_url }}" class="task-title fw-semibold text-dark text-decoration-none">
+                {{ task.title }}
+              </a>
+              <div class="d-flex flex-wrap gap-2 mt-1 align-items-center">
+                <span class="badge bg-{{ task.priority|priority_badge_class }}">{{ task.get_priority_display }}</span>
+                {% if task.due_date %}
+                  <small class="text-muted"><i class="bi bi-calendar3 me-1"></i>{{ task.due_date }}</small>
+                {% endif %}
+                {% if task.created_by %}
+                  <small class="text-muted">
+                    <i class="bi bi-person-workspace me-1"></i>From: {{ task.created_by.get_full_name|default:task.created_by.username }}
+                  </small>
+                {% endif %}
+                {% if task.task_list %}
+                  <small class="text-muted">
+                    <i class="bi bi-folder me-1"></i>{{ task.task_list.name }}
+                  </small>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          <!-- Assignees can only toggle — no edit/delete buttons -->
+          <div class="ms-2">
+            <span class="badge bg-secondary"><i class="bi bi-lock me-1"></i>View only</span>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-person-check display-3"></i>
+    <p class="lead mt-3">No tasks have been assigned to you yet.</p>
+  </div>
+{% endif %}
+{% endblock %}

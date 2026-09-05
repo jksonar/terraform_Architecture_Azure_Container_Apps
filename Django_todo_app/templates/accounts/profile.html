@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% load static crispy_forms_tags %}
+{% block title %}Profile — TaskFlow{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <h2 class="mb-4"><i class="bi bi-person-circle me-2"></i>My Profile</h2>
+
+    <!-- Avatar card -->
+    <div class="card shadow-sm mb-4 text-center">
+      <div class="card-body py-4">
+        {% if user.profile.picture %}
+          <img src="{{ user.profile.picture.url }}" alt="Profile picture"
+               class="rounded-circle mb-3 border"
+               style="width:110px;height:110px;object-fit:cover;">
+          <br>
+          <form method="post" action="{% url 'accounts:profile-picture-delete' %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger btn-sm mt-2"
+                    onclick="return confirm('Remove your profile picture?')">
+              <i class="bi bi-trash me-1"></i>Remove Picture
+            </button>
+          </form>
+        {% else %}
+          <div class="rounded-circle bg-secondary d-inline-flex align-items-center justify-content-center mb-3 border"
+               style="width:110px;height:110px;">
+            <i class="bi bi-person-fill text-white" style="font-size:3rem;"></i>
+          </div>
+        {% endif %}
+        <h5 class="mb-0 mt-2">{{ user.get_full_name|default:user.username }}</h5>
+        <small class="text-muted">Member since {{ user.date_joined|date:"F j, Y" }}</small>
+      </div>
+    </div>
+
+    <!-- Hierarchy info -->
+    {% if profile %}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header fw-semibold"><i class="bi bi-diagram-3 me-2"></i>Organisation</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Role</dt>
+          <dd class="col-sm-8">
+            <span class="badge bg-primary">{{ profile.role_display }}</span>
+          </dd>
+          <dt class="col-sm-4">Department</dt>
+          <dd class="col-sm-8">
+            {% if profile.department %}
+              <a href="{% url 'accounts:department-detail' profile.department.pk %}">{{ profile.department.name }}</a>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </dd>
+          <dt class="col-sm-4">Manager</dt>
+          <dd class="col-sm-8">
+            {% if profile.manager %}
+              {{ profile.manager.user.get_full_name|default:profile.manager.user.username }}
+              <span class="text-muted small">({{ profile.manager.role_display }})</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </dd>
+        </dl>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Edit form -->
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold">Account Details</div>
+        <div class="card-body">
+          {{ user_form|crispy }}
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-header fw-semibold">Profile Picture</div>
+        <div class="card-body">
+          {{ profile_form|crispy }}
+          {% if user.profile.picture %}
+            <small class="text-muted">Upload a new image to replace the current picture.</small>
+          {% endif %}
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-check-lg me-1"></i>Save Changes
+      </button>
+      <a href="{% url 'tasks:list-index' %}" class="btn btn-outline-secondary ms-2">
+        <i class="bi bi-list-task me-1"></i>My Task Lists
+      </a>
+    </form>
+  </div>
+</div>
+{% endblock %}
