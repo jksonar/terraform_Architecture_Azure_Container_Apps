@@ -1,13 +1,3 @@
-resource "azurerm_public_ip" "this" {
-  name                = "pip-appgw-${var.name_prefix}"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  allocation_method   = "Static"
-  sku                 = "Standard"
-  zones               = ["1", "2", "3"]
-  tags                = var.tags
-}
-
 resource "azurerm_web_application_firewall_policy" "this" {
   count               = var.enable_waf ? 1 : 0
   name                = "waf-${var.name_prefix}"
@@ -36,11 +26,28 @@ locals {
   frontend_ip_name   = "feip-public"
   frontend_port_name = "feport-80"
   gateway_ip_config  = "gwip-${var.name_prefix}"
-  backend_pool_name  = "beap-containerapp"
-  backend_http_name  = "behttp-containerapp"
-  probe_name         = "probe-containerapp"
   http_listener_name = "httplst-80"
   routing_rule_name  = "rule-http"
+  url_path_map_name  = "urlpm-apps"
+
+  backends = {
+    django_todo = {
+      pool_name    = "beap-django-todo"
+      http_name    = "behttp-django-todo"
+      probe_name   = "probe-django-todo"
+      fqdn         = var.django_todo_backend_fqdn
+      health_path  = var.django_todo_health_path
+      path_pattern = var.django_todo_path_pattern
+    }
+    cosmos_crud = {
+      pool_name    = "beap-cosmos-crud"
+      http_name    = "behttp-cosmos-crud"
+      probe_name   = "probe-cosmos-crud"
+      fqdn         = var.cosmos_crud_backend_fqdn
+      health_path  = var.cosmos_crud_health_path
+      path_pattern = var.cosmos_crud_path_pattern
+    }
+  }
 }
 
 resource "azurerm_application_gateway" "this" {
@@ -68,7 +75,7 @@ resource "azurerm_application_gateway" "this" {
 
   frontend_ip_configuration {
     name                 = local.frontend_ip_name
-    public_ip_address_id = azurerm_public_ip.this.id
+    public_ip_address_id = var.public_ip_id
   }
 
   frontend_port {
@@ -76,30 +83,39 @@ resource "azurerm_application_gateway" "this" {
     port = 80
   }
 
-  backend_address_pool {
-    name  = local.backend_pool_name
-    fqdns = [var.backend_fqdn]
+  dynamic "backend_address_pool" {
+    for_each = local.backends
+    content {
+      name  = backend_address_pool.value.pool_name
+      fqdns = [backend_address_pool.value.fqdn]
+    }
   }
 
-  probe {
-    name                                      = local.probe_name
-    protocol                                  = "Https"
-    path                                      = "/"
-    host                                      = var.backend_fqdn
-    interval                                  = 30
-    timeout                                   = 30
-    unhealthy_threshold                       = 3
-    pick_host_name_from_backend_http_settings = false
+  dynamic "probe" {
+    for_each = local.backends
+    content {
+      name                                      = probe.value.probe_name
+      protocol                                  = "Https"
+      path                                      = probe.value.health_path
+      host                                      = probe.value.fqdn
+      interval                                  = 30
+      timeout                                   = 30
+      unhealthy_threshold                       = 3
+      pick_host_name_from_backend_http_settings = false
+    }
   }
 
-  backend_http_settings {
-    name                  = local.backend_http_name
-    cookie_based_affinity = "Disabled"
-    port                  = 443
-    protocol              = "Https"
-    request_timeout       = 30
-    host_name             = var.backend_fqdn
-    probe_name            = local.probe_name
+  dynamic "backend_http_settings" {
+    for_each = local.backends
+    content {
+      name                  = backend_http_settings.value.http_name
+      cookie_based_affinity = "Disabled"
+      port                  = 443
+      protocol              = "Https"
+      request_timeout       = 30
+      host_name             = backend_http_settings.value.fqdn
+      probe_name            = backend_http_settings.value.probe_name
+    }
   }
 
   http_listener {
@@ -109,13 +125,28 @@ resource "azurerm_application_gateway" "this" {
     protocol                       = "Http"
   }
 
+  url_path_map {
+    name                               = local.url_path_map_name
+    default_backend_address_pool_name  = local.backends.django_todo.pool_name
+    default_backend_http_settings_name = local.backends.django_todo.http_name
+
+    dynamic "path_rule" {
+      for_each = local.backends
+      content {
+        name                       = "pathrule-${path_rule.key}"
+        paths                      = [path_rule.value.path_pattern]
+        backend_address_pool_name  = path_rule.value.pool_name
+        backend_http_settings_name = path_rule.value.http_name
+      }
+    }
+  }
+
   request_routing_rule {
-    name                       = local.routing_rule_name
-    rule_type                  = "Basic"
-    priority                   = 100
-    http_listener_name         = local.http_listener_name
-    backend_address_pool_name  = local.backend_pool_name
-    backend_http_settings_name = local.backend_http_name
+    name               = local.routing_rule_name
+    rule_type          = "PathBasedRouting"
+    priority           = 100
+    http_listener_name = local.http_listener_name
+    url_path_map_name  = local.url_path_map_name
   }
 
   # NOTE: HTTP (port 80) only, so the stack is deployable out of the box. For

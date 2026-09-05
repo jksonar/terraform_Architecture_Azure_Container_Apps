@@ -1,0 +1,12 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        REQUIREMENTS_FILE: requirements/dev.txt
+    image: cosmos-crud:dev
+    env_file:
+      - .env.dev
+    ports:
+      - "${APP_PORT:-8001}:8000"
+    restart: unless-stopped

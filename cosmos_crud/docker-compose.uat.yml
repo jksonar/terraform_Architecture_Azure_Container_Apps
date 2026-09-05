@@ -1,0 +1,12 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        REQUIREMENTS_FILE: requirements/uat.txt
+    image: cosmos-crud:uat
+    env_file:
+      - .env.uat
+    ports:
+      - "${APP_PORT:-8001}:8000"
+    restart: unless-stopped

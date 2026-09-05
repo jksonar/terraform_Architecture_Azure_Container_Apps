@@ -4,6 +4,9 @@ from . import views
 app_name = 'tasks'
 
 urlpatterns = [
+    # Liveness probe for the Application Gateway backend health check — no auth required
+    path('health/', views.health, name='health'),
+
     # Dashboard (login redirect target)
     path('dashboard/', views.DashboardView.as_view(), name='dashboard'),
 

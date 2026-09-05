@@ -9,15 +9,3 @@ output "environment_default_domain" {
 output "environment_static_ip" {
   value = azurerm_container_app_environment.this.static_ip_address
 }
-
-output "app_id" {
-  value = azurerm_container_app.this.id
-}
-
-output "app_name" {
-  value = azurerm_container_app.this.name
-}
-
-output "app_ingress_fqdn" {
-  value = azurerm_container_app.this.ingress[0].fqdn
-}

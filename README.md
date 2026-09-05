@@ -1,18 +1,45 @@
 # Azure Container Apps baseline architecture
 
 Terraform implementation of the architecture described in
-[Azure Well-Architected: Container Apps service guide](https://learn.microsoft.com/en-us/azure/well-architected/service-guides/azure-container-apps):
-`Internet -> Application Gateway -> Container App (VNet-internal) -> [Cosmos DB | Key Vault | Container Registry]`,
-all downstream dependencies reachable only via private endpoints.
+[Azure Well-Architected: Container Apps service guide](https://learn.microsoft.com/en-us/azure/well-architected/service-guides/azure-container-apps),
+extended to **two independent Django apps sharing one Application Gateway** via
+path-based routing:
+
+```
+                    Internet
+                       |
+             Azure Application Gateway (WAF v2)
+                       |
+         +-------------+-------------+
+         |                           |
+   Path: /tasks/*             Path: /cosmos_crud/*
+         |                           |
+         v                           v
+  ca-django-todo               ca-cosmos-crud
+ (Django_todo_app/)             (cosmos_crud/)
+         |                           |
+         v                           v
+  PostgreSQL Flexible          Cosmos DB (SQL API)
+       Server
+```
+
+Both Container Apps are internal-only (reachable exclusively from inside the
+VNet, via the Container Apps Environment's internal load balancer) — the
+Application Gateway is the only public entry point. Each app has its own
+user-assigned managed identity (`id-django-todo-*` / `id-cosmos-crud-*`),
+scoped to only the resources it needs: `django_todo` gets `AcrPull` + `Key
+Vault Secrets User`; `cosmos_crud` gets `AcrPull` + the Cosmos DB "Built-in
+Data Contributor" data-plane role. Neither identity can touch the other app's
+database.
 
 ## Repository structure
 
 ```
-azure-terraform-project/
+terraform_Architecture_Azure_Container_Apps/
 │
 ├── environments/            # one deployable root module per environment
 │   ├── dev/
-│   ├── staging/
+│   ├── staging/             # this is Django_todo_app's "UAT"
 │   └── prod/
 │       ├── backend.tf       # remote state config (state `key` differs per env)
 │       ├── providers.tf
@@ -23,16 +50,25 @@ azure-terraform-project/
 │       └── terraform.tfvars # the only file that actually differs in content between envs
 │
 ├── modules/
-│   ├── network/              # VNet + 3 subnets (App Gateway, Container Apps, private endpoints)
-│   ├── nsg/                  # NSGs + subnet associations for those 3 subnets
-│   ├── appgateway/            # Public IP + WAF policy + Application Gateway
-│   ├── containerapps/         # Container Apps Environment + Container App + its own private DNS zone
+│   ├── network/              # VNet + 4 subnets (App Gateway, Container Apps, private endpoints, PostgreSQL)
+│   ├── nsg/                  # NSGs + subnet associations for those subnets
+│   ├── appgateway/            # WAF policy + Application Gateway, path-based routing to 2 backends
+│   ├── containerapps/         # Container Apps Environment + its own private DNS zone (shared by both apps)
+│   ├── containerapp/           # One Container App (generic — instantiated twice: django_todo, cosmos_crud)
 │   ├── database/               # Cosmos DB (SQL API)
 │   ├── postgresql/              # PostgreSQL Flexible Server (VNet-integrated, for Django_todo_app)
 │   ├── keyvault/                # Key Vault (RBAC-authorized)
 │   ├── containerregistry/        # Azure Container Registry (SKU per environment)
 │   ├── privateendpoints/          # Private DNS zones + private endpoints for ACR/Key Vault/Cosmos DB
 │   └── monitoring/                 # Log Analytics workspace
+│
+├── Django_todo_app/           # Django app served at /tasks/* — PostgreSQL
+├── cosmos_crud/                # Django app served at /cosmos_crud/* — Cosmos DB
+│
+├── scripts/
+│   ├── deploy.sh               # apply -> build+push images -> apply again, for one environment
+│   ├── build-images.sh          # docker build+push both apps straight from the local dirs above
+│   └── bootstrap-acr.sh          # documented no-op — see the file header
 │
 ├── backend.tf                # canonical template — copy into environments/<env>/backend.tf
 ├── providers.tf               # canonical template — copy into environments/<env>/providers.tf
@@ -67,10 +103,13 @@ uses an Application Gateway (L7, WAF-capable), not an Azure Load Balancer.
    stack is deployable as-is. For production, add a port 443 listener with a
    certificate (ideally Key Vault-backed via a User Assigned Identity on the
    gateway) — see the comment in `modules/appgateway/main.tf`.
-5. The container app starts on the public sample image
-   `mcr.microsoft.com/azuredocs/containerapps-helloworld:latest`. After the
-   first apply, push your real image to the created ACR and set
-   `container_image` in that environment's `terraform.tfvars`, then re-apply.
+5. Both container apps start on the public sample image
+   `mcr.microsoft.com/azuredocs/containerapps-helloworld:latest` (via
+   `todo_container_image` / `cosmos_crud_container_image`), so the first
+   apply succeeds before either app's real image exists. After that, run
+   `../../scripts/deploy.sh <environment>` (or `build-images.sh` + a second
+   `apply` by hand — see "Building and deploying the apps" below) to build
+   and push the real images and roll them out.
 6. Cosmos DB and Key Vault have public network access disabled — you'll need
    connectivity to the VNet (VPN/ExpressRoute/bastion/jumpbox) to manage their
    data planes directly; Terraform itself only needs the ARM control plane,
@@ -95,37 +134,65 @@ uses an Application Gateway (L7, WAF-capable), not an Azure Load Balancer.
    and never appears in tfvars; it's only readable via a sensitive
    `terraform output`.
 
-## Django_todo_app database setup
+## Secrets: Django Todo + Key Vault
 
-`Django_todo_app`'s Postgres connection settings (`POSTGRES_DB`,
-`POSTGRES_USER`, `POSTGRES_PASSWORD`, `DB_HOST`, `DB_PORT`) plus its core
-Django settings (`SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`,
-`DJANGO_SETTINGS_MODULE`) are sourced from Key Vault, not from the checked-in
-`.env.*` files (those stay for local/docker-compose use only). After
-`terraform apply` succeeds for an environment:
+`Django_todo_app`'s `SECRET_KEY` and `POSTGRES_PASSWORD` are generated by
+Terraform (`random_password`), written into Key Vault as
+`azurerm_key_vault_secret` resources, and wired into the `ca-django-todo`
+Container App as native Key Vault secret references (`secret { ... }` /
+`env { secret_name = ... }` on `azurerm_container_app`, via the
+`modules/containerapp` module's `secrets` / `secret_env_vars` inputs) —
+there's no post-apply script to run, and no secret value ever appears in
+tfvars or `env_vars`. The Container App's managed identity
+(`id-django-todo-*`) holds "Key Vault Secrets User" on the vault so it can
+read them at runtime. Everything else Django needs (`POSTGRES_DB`,
+`POSTGRES_USER`, `DB_HOST`, `DB_PORT`, `ALLOWED_HOSTS`,
+`DJANGO_SETTINGS_MODULE`) is non-secret configuration, passed as plain
+`env_vars` straight from Terraform. `cosmos_crud` needs no Key Vault secret at
+all — it authenticates to Cosmos DB purely via its own managed identity
+(`id-cosmos-crud-*`, granted the Cosmos DB "Built-in Data Contributor" role),
+so `COSMOS_DB_KEY` is never set in Azure.
+
+`SECRET_KEY` won't rotate on a later `terraform apply` (that would invalidate
+every active Django session) unless you deliberately change the
+`random_password.django_secret_key` resource's own arguments.
+
+Prod-only SMTP credentials (`EMAIL_HOST_PASSWORD` etc.) aren't derivable from
+this Terraform config; set them by hand with `az keyvault secret set` and add
+a corresponding `secrets`/`secret_env_vars` entry to the `django_todo` module
+call in `environments/prod/main.tf` if/when you need outbound email.
+
+## Building and deploying the apps
+
+Both Django apps live in this repository (`Django_todo_app/`, `cosmos_crud/`)
+— there's no separate app repo to clone. `scripts/build-images.sh` builds and
+pushes both straight from those local directories to the target
+environment's ACR, tagged with the current git commit SHA; `scripts/deploy.sh`
+runs the full `apply -> build+push -> apply` sequence for one environment:
 
 ```bash
-cd environments/dev   # or staging (= Django's UAT) / prod
-./scripts/populate-keyvault-secrets.sh
+./scripts/deploy.sh dev   # or staging / prod
 ```
 
-This reads the Postgres/Key Vault/Container App details straight out of
-`terraform output`, writes them into that environment's Key Vault, and wires
-each secret into the Container App as an env var via a native Key Vault
-secret reference (the Container App's managed identity already holds "Key
-Vault Secrets User" on the vault). See the script's header comment for
-options (`--django-env`, `--allowed-hosts`, `--email-*` for prod) and the
-important note about re-running it after any later `terraform apply` that
-touches the container app.
-
-## Usage
+or step by step:
 
 ```bash
-cd environments/dev   # or staging / prod
+cd environments/dev
 terraform init
-terraform plan  -var-file=terraform.tfvars
-terraform apply -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars   # infra, placeholder image on a first run
+
+cd ../..
+./scripts/build-images.sh dev                # builds + pushes django-todo and cosmos-crud
+
+cd environments/dev
+terraform apply -var-file=terraform.tfvars \
+  -var="todo_container_image=<printed by build-images.sh>" \
+  -var="cosmos_crud_container_image=<printed by build-images.sh>"
 ```
+
+`scripts/bootstrap-acr.sh` is a documented no-op — see its header comment for
+why (the ACR is created by Terraform itself, not by a separate bootstrap
+step).
 
 ## Notes / things to extend for production
 

@@ -1,0 +1,18 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        REQUIREMENTS_FILE: requirements/local.txt
+    image: cosmos-crud:local
+    env_file:
+      - .env.local
+    ports:
+      - "${APP_PORT:-8001}:8000"
+    volumes:
+      # Bind-mount source so --reload picks up code changes instantly
+      - .:/app
+    command: >
+      sh -c "python manage.py collectstatic --noinput &&
+             uvicorn cosmoscrud.asgi:application
+               --host 0.0.0.0 --port 8000 --reload"

@@ -5,7 +5,9 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.db import connection
 from django.db.models import Count, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views import View
@@ -13,6 +15,14 @@ from django.views.decorators.http import require_POST
 from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, DeleteView
 )
+
+
+def health(request):
+    try:
+        connection.ensure_connection()
+        return JsonResponse({'status': 'ok'})
+    except Exception:
+        return JsonResponse({'status': 'error'}, status=503)
 
 from accounts.models import Department, UserProfile
 from .models import TaskList, Task, TaskStatusHistory

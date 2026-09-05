@@ -1,0 +1,15 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        REQUIREMENTS_FILE: requirements/prod.txt
+    image: cosmos-crud:prod
+    env_file:
+      - .env.prod
+    environment:
+      UVICORN_WORKERS: 4
+      UVICORN_LOG_LEVEL: warning
+    ports:
+      - "${APP_PORT:-8001}:8000"
+    restart: always

@@ -129,27 +129,19 @@ module "privateendpoints" {
   enable_acr_private_endpoint = var.acr_private_endpoint_enabled
 }
 
-# User-assigned identity the Container App runs as. Created at root (not in
-# the containerapps module) so the role assignments below — which need its
-# principal_id — and the module's own depends_on can both reference it
-# without a circular module dependency.
-resource "azurerm_user_assigned_identity" "container_app" {
-  name                = "id-containerapp-${local.name}"
+# Public IP for the Application Gateway's frontend. Created at root (not
+# inside the appgateway module) so the Django Todo container app can depend
+# on its address (for ALLOWED_HOSTS) without creating a dependency cycle
+# through the gateway itself, which in turn depends on both container apps'
+# FQDNs.
+resource "azurerm_public_ip" "appgw" {
+  name                = "pip-appgw-${local.name}"
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  zones               = ["1", "2", "3"]
   tags                = local.tags
-}
-
-resource "azurerm_role_assignment" "acr_pull" {
-  scope                = module.containerregistry.id
-  role_definition_name = "AcrPull"
-  principal_id         = azurerm_user_assigned_identity.container_app.principal_id
-}
-
-resource "azurerm_role_assignment" "kv_secrets_user" {
-  scope                = module.keyvault.id
-  role_definition_name = "Key Vault Secrets User"
-  principal_id         = azurerm_user_assigned_identity.container_app.principal_id
 }
 
 resource "azurerm_role_assignment" "kv_admin_deployer" {
@@ -158,14 +150,73 @@ resource "azurerm_role_assignment" "kv_admin_deployer" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
+# ── Django Todo: managed identity + role assignments ─────────────────────
+resource "azurerm_user_assigned_identity" "django_todo" {
+  name                = "id-django-todo-${local.name}"
+  resource_group_name = azurerm_resource_group.this.name
+  location            = azurerm_resource_group.this.location
+  tags                = local.tags
+}
+
+resource "azurerm_role_assignment" "django_todo_acr_pull" {
+  scope                = module.containerregistry.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_user_assigned_identity.django_todo.principal_id
+}
+
+resource "azurerm_role_assignment" "django_todo_kv_secrets_user" {
+  scope                = module.keyvault.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_user_assigned_identity.django_todo.principal_id
+}
+
+# ── Cosmos CRUD: managed identity + role assignments ──────────────────────
+resource "azurerm_user_assigned_identity" "cosmos_crud" {
+  name                = "id-cosmos-crud-${local.name}"
+  resource_group_name = azurerm_resource_group.this.name
+  location            = azurerm_resource_group.this.location
+  tags                = local.tags
+}
+
+resource "azurerm_role_assignment" "cosmos_crud_acr_pull" {
+  scope                = module.containerregistry.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_user_assigned_identity.cosmos_crud.principal_id
+}
+
 # Built-in "Cosmos DB Built-in Data Contributor" role — control-plane RBAC
 # alone does not grant Cosmos DB data-plane access.
-resource "azurerm_cosmosdb_sql_role_assignment" "container_app" {
+resource "azurerm_cosmosdb_sql_role_assignment" "cosmos_crud" {
   resource_group_name = azurerm_resource_group.this.name
   account_name        = module.database.name
   role_definition_id  = "${module.database.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
-  principal_id        = azurerm_user_assigned_identity.container_app.principal_id
+  principal_id        = azurerm_user_assigned_identity.cosmos_crud.principal_id
   scope               = module.database.id
+}
+
+# ── Key Vault secrets for Django Todo ──────────────────────────────────────
+# Generated once by Terraform and never rotated on re-apply (random_password
+# only changes if its own arguments change), so re-applying doesn't
+# invalidate active Django sessions.
+resource "random_password" "django_secret_key" {
+  length  = 50
+  special = true
+}
+
+resource "azurerm_key_vault_secret" "django_secret_key" {
+  name         = "django-secret-key"
+  value        = random_password.django_secret_key.result
+  key_vault_id = module.keyvault.id
+
+  depends_on = [azurerm_role_assignment.kv_admin_deployer]
+}
+
+resource "azurerm_key_vault_secret" "postgres_password" {
+  name         = "postgres-password"
+  value        = module.postgresql.administrator_password
+  key_vault_id = module.keyvault.id
+
+  depends_on = [azurerm_role_assignment.kv_admin_deployer]
 }
 
 module "containerapps" {
@@ -178,26 +229,79 @@ module "containerapps" {
   infrastructure_subnet_id   = module.network.container_apps_subnet_id
   workload_profile_enabled   = var.container_app_environment_workload_profile
   vnet_id                    = module.network.vnet_id
-  identity_id                = azurerm_user_assigned_identity.container_app.id
-  identity_client_id         = azurerm_user_assigned_identity.container_app.client_id
-  registry_login_server      = module.containerregistry.login_server
-  container_image            = var.container_image
-  target_port                = var.container_app_target_port
-  cpu                        = var.container_cpu
-  memory                     = var.container_memory
-  min_replicas               = var.container_app_min_replicas
-  max_replicas               = var.container_app_max_replicas
   tags                       = local.tags
+}
+
+module "django_todo" {
+  source = "../../modules/containerapp"
+
+  name                         = substr("ca-django-todo-${local.name}", 0, 32)
+  resource_group_name          = azurerm_resource_group.this.name
+  container_app_environment_id = module.containerapps.environment_id
+  identity_id                  = azurerm_user_assigned_identity.django_todo.id
+  identity_client_id           = azurerm_user_assigned_identity.django_todo.client_id
+  registry_login_server        = module.containerregistry.login_server
+  container_image              = var.todo_container_image
+  target_port                  = var.todo_container_target_port
+  cpu                          = var.container_cpu
+  memory                       = var.container_memory
+  min_replicas                 = var.container_app_min_replicas
+  max_replicas                 = var.container_app_max_replicas
+  tags                         = local.tags
 
   env_vars = {
-    COSMOS_DB_ENDPOINT = module.database.endpoint
-    KEY_VAULT_URI      = module.keyvault.vault_uri
+    DJANGO_SETTINGS_MODULE = "taskmanager.settings.${var.django_settings_env}"
+    ALLOWED_HOSTS          = join(",", [azurerm_public_ip.appgw.ip_address, "localhost", "127.0.0.1"])
+    POSTGRES_DB            = module.postgresql.database_name
+    POSTGRES_USER          = module.postgresql.administrator_login
+    DB_HOST                = module.postgresql.fqdn
+    DB_PORT                = "5432"
+  }
+
+  secrets = {
+    django-secret-key = azurerm_key_vault_secret.django_secret_key.id
+    postgres-password = azurerm_key_vault_secret.postgres_password.id
+  }
+
+  secret_env_vars = {
+    SECRET_KEY        = "django-secret-key"
+    POSTGRES_PASSWORD = "postgres-password"
   }
 
   depends_on = [
-    azurerm_role_assignment.acr_pull,
-    azurerm_role_assignment.kv_secrets_user,
-    azurerm_cosmosdb_sql_role_assignment.container_app,
+    azurerm_role_assignment.django_todo_acr_pull,
+    azurerm_role_assignment.django_todo_kv_secrets_user,
+  ]
+}
+
+module "cosmos_crud" {
+  source = "../../modules/containerapp"
+
+  name                         = substr("ca-cosmos-crud-${local.name}", 0, 32)
+  resource_group_name          = azurerm_resource_group.this.name
+  container_app_environment_id = module.containerapps.environment_id
+  identity_id                  = azurerm_user_assigned_identity.cosmos_crud.id
+  identity_client_id           = azurerm_user_assigned_identity.cosmos_crud.client_id
+  registry_login_server        = module.containerregistry.login_server
+  container_image              = var.cosmos_crud_container_image
+  target_port                  = var.cosmos_crud_container_target_port
+  cpu                          = var.container_cpu
+  memory                       = var.container_memory
+  min_replicas                 = var.container_app_min_replicas
+  max_replicas                 = var.container_app_max_replicas
+  tags                         = local.tags
+
+  env_vars = {
+    DJANGO_SETTINGS_MODULE = "cosmoscrud.settings.${var.django_settings_env}"
+    ALLOWED_HOSTS          = join(",", [azurerm_public_ip.appgw.ip_address, "localhost", "127.0.0.1"])
+    COSMOS_DB_ENDPOINT     = module.database.endpoint
+    COSMOS_DB_DATABASE     = var.cosmosdb_database_name
+    COSMOS_DB_CONTAINER    = var.cosmosdb_container_name
+  }
+
+  depends_on = [
+    azurerm_role_assignment.cosmos_crud_acr_pull,
+    azurerm_cosmosdb_sql_role_assignment.cosmos_crud,
   ]
 }
 
@@ -208,14 +312,17 @@ module "appgateway" {
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
   subnet_id           = module.network.appgw_subnet_id
-  backend_fqdn        = module.containerapps.app_ingress_fqdn
+  public_ip_id        = azurerm_public_ip.appgw.id
   enable_waf          = var.enable_waf
   min_capacity        = var.appgw_min_capacity
   max_capacity        = var.appgw_max_capacity
   tags                = local.tags
 
+  django_todo_backend_fqdn = module.django_todo.ingress_fqdn
+  cosmos_crud_backend_fqdn = module.cosmos_crud.ingress_fqdn
+
   # The environment's private DNS zone/records (created inside the
   # containerapps module) must exist before the gateway's FQDN-based backend
-  # pool can resolve them.
+  # pools can resolve them.
   depends_on = [module.containerapps]
 }

@@ -1,0 +1,36 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+env/
+venv/
+.venv/
+ENV/
+
+# Django runtime artifacts
+staticfiles/
+*.log
+
+# Environment secrets — never commit real .env.* files
+.env
+.env.local
+.env.dev
+.env.uat
+.env.prod
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*

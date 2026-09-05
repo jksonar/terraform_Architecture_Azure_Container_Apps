@@ -11,7 +11,7 @@ variable "prefix" {
 
 variable "location" {
   type    = string
-  default = "eastus2"
+  default = "centralus"
 }
 
 variable "tags" {
@@ -45,15 +45,31 @@ variable "container_app_environment_workload_profile" {
   default = true
 }
 
-variable "container_image" {
-  description = "Container image (repository:tag). Defaults to a public sample image; point this at your ACR-hosted image after the first apply."
+variable "django_settings_env" {
+  description = "Which Django settings module/.env this terraform environment maps to for both apps (taskmanager.settings.<this> / cosmoscrud.settings.<this>). dev->dev, staging->uat, prod->prod."
+  type        = string
+}
+
+variable "todo_container_image" {
+  description = "Django Todo container image (repository:tag). Defaults to a public sample image; point this at your ACR-hosted image (built from ../../Django_todo_app) after running scripts/build-images.sh."
   type        = string
   default     = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 }
 
-variable "container_app_target_port" {
+variable "todo_container_target_port" {
   type    = number
-  default = 80
+  default = 8000
+}
+
+variable "cosmos_crud_container_image" {
+  description = "Cosmos CRUD container image (repository:tag). Defaults to a public sample image; point this at your ACR-hosted image (built from ../../cosmos_crud) after running scripts/build-images.sh."
+  type        = string
+  default     = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+}
+
+variable "cosmos_crud_container_target_port" {
+  type    = number
+  default = 8000
 }
 
 variable "container_cpu" {
