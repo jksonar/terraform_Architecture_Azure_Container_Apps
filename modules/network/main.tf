@@ -20,6 +20,15 @@ resource "azurerm_subnet" "container_apps" {
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [var.container_apps_subnet_prefix]
+
+  delegation {
+    name = "Microsoft.App.environments"
+
+    service_delegation {
+      name    = "Microsoft.App/environments"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
+  }
 }
 
 # Private endpoints subnet (Cosmos DB, Key Vault, ACR)

@@ -31,6 +31,12 @@ variable "cosmosdb_account_id" {
   type = string
 }
 
+variable "enable_acr_private_endpoint" {
+  description = "Whether to create a private endpoint (and DNS zone) for the container registry. Requires the registry to be Premium SKU."
+  type        = bool
+  default     = true
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

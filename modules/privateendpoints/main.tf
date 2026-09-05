@@ -1,9 +1,11 @@
 locals {
-  private_dns_zones = {
-    acr    = "privatelink.azurecr.io"
-    vault  = "privatelink.vaultcore.azure.net"
-    cosmos = "privatelink.documents.azure.com"
-  }
+  private_dns_zones = merge(
+    var.enable_acr_private_endpoint ? { acr = "privatelink.azurecr.io" } : {},
+    {
+      vault  = "privatelink.vaultcore.azure.net"
+      cosmos = "privatelink.documents.azure.com"
+    }
+  )
 }
 
 resource "azurerm_private_dns_zone" "this" {
@@ -23,6 +25,8 @@ resource "azurerm_private_dns_zone_virtual_network_link" "this" {
 }
 
 resource "azurerm_private_endpoint" "acr" {
+  count = var.enable_acr_private_endpoint ? 1 : 0
+
   name                = "pe-acr-${var.name_prefix}"
   resource_group_name = var.resource_group_name
   location            = var.location

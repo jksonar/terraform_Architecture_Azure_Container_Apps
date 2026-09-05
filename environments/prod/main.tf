@@ -103,6 +103,8 @@ module "privateendpoints" {
   key_vault_id          = module.keyvault.id
   cosmosdb_account_id   = module.database.id
   tags                  = local.tags
+
+  enable_acr_private_endpoint = var.acr_private_endpoint_enabled
 }
 
 # User-assigned identity the Container App runs as. Created at root (not in

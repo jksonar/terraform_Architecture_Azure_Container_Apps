@@ -107,6 +107,12 @@ variable "acr_sku" {
   default     = "Premium"
 }
 
+variable "acr_private_endpoint_enabled" {
+  description = "Whether to create a private endpoint for the container registry. Requires acr_sku = Premium."
+  type        = bool
+  default     = true
+}
+
 variable "enable_waf" {
   type    = bool
   default = true

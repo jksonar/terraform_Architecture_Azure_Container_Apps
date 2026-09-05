@@ -29,7 +29,7 @@ azure-terraform-project/
 │   ├── containerapps/         # Container Apps Environment + Container App + its own private DNS zone
 │   ├── database/               # Cosmos DB (SQL API)
 │   ├── keyvault/                # Key Vault (RBAC-authorized)
-│   ├── containerregistry/        # Azure Container Registry (Premium)
+│   ├── containerregistry/        # Azure Container Registry (SKU per environment)
 │   ├── privateendpoints/          # Private DNS zones + private endpoints for ACR/Key Vault/Cosmos DB
 │   └── monitoring/                 # Log Analytics workspace
 │
@@ -70,10 +70,22 @@ uses an Application Gateway (L7, WAF-capable), not an Azure Load Balancer.
    `mcr.microsoft.com/azuredocs/containerapps-helloworld:latest`. After the
    first apply, push your real image to the created ACR and set
    `container_image` in that environment's `terraform.tfvars`, then re-apply.
-6. Cosmos DB, Key Vault, and ACR all have public network access disabled —
-   you'll need connectivity to the VNet (VPN/ExpressRoute/bastion/jumpbox) to
-   manage their data planes directly; Terraform itself only needs the ARM
-   control plane, which stays reachable.
+6. Cosmos DB and Key Vault have public network access disabled — you'll need
+   connectivity to the VNet (VPN/ExpressRoute/bastion/jumpbox) to manage their
+   data planes directly; Terraform itself only needs the ARM control plane,
+   which stays reachable. ACR has public network access enabled so `docker
+   push` works from outside the VNet.
+7. The Container Apps infrastructure subnet must be delegated to
+   `Microsoft.App/environments` (handled in `modules/network`) — Azure
+   rejects the Managed Environment otherwise.
+8. ACR private endpoints require the **Premium** SKU. `acr_sku` /
+   `acr_private_endpoint_enabled` are set per environment:
+   staging/prod default to Premium with the private endpoint enabled; dev
+   defaults to Basic with the private endpoint disabled (ACR stays reachable
+   over the public network instead) to avoid the ~$50/month Premium cost on
+   a free/trial subscription. Set `acr_sku = "Premium"` and
+   `acr_private_endpoint_enabled = true` for dev if you want it locked down
+   like staging/prod.
 
 ## Usage
 
