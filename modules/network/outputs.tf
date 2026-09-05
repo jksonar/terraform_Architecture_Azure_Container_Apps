@@ -17,3 +17,7 @@ output "container_apps_subnet_id" {
 output "private_endpoints_subnet_id" {
   value = azurerm_subnet.private_endpoints.id
 }
+
+output "postgresql_subnet_id" {
+  value = azurerm_subnet.postgresql.id
+}

@@ -35,6 +35,11 @@ variable "private_endpoints_subnet_prefix" {
   type = string
 }
 
+variable "postgresql_subnet_prefix" {
+  description = "Address prefix for the PostgreSQL Flexible Server delegated subnet."
+  type        = string
+}
+
 variable "container_app_environment_workload_profile" {
   type    = bool
   default = true
@@ -99,6 +104,48 @@ variable "cosmosdb_partition_key_path" {
 variable "key_vault_sku" {
   type    = string
   default = "standard"
+}
+
+variable "postgresql_sku_name" {
+  description = "e.g. B_Standard_B1ms (Burstable), GP_Standard_D2s_v3 (General Purpose)."
+  type        = string
+  default     = "B_Standard_B1ms"
+}
+
+variable "postgresql_storage_mb" {
+  type    = number
+  default = 32768
+}
+
+variable "postgresql_version" {
+  type    = string
+  default = "16"
+}
+
+variable "postgresql_administrator_login" {
+  type    = string
+  default = "psqladmin"
+}
+
+variable "postgresql_database_name" {
+  description = "Must match POSTGRES_DB in the Django_todo_app .env file for this environment."
+  type        = string
+}
+
+variable "postgresql_backup_retention_days" {
+  type    = number
+  default = 7
+}
+
+variable "postgresql_geo_redundant_backup_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "postgresql_high_availability_enabled" {
+  description = "Zone-redundant HA standby. Not supported on Burstable (B_*) SKUs."
+  type        = bool
+  default     = false
 }
 
 variable "acr_sku" {

@@ -97,3 +97,28 @@ resource "azurerm_subnet_network_security_group_association" "private_endpoints"
   subnet_id                 = var.private_endpoints_subnet_id
   network_security_group_id = azurerm_network_security_group.private_endpoints.id
 }
+
+# --- PostgreSQL Flexible Server subnet NSG ---
+resource "azurerm_network_security_group" "postgresql" {
+  name                = "nsg-postgresql-${var.name_prefix}"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  tags                = var.tags
+
+  security_rule {
+    name                       = "AllowContainerAppsPostgres"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "5432"
+    source_address_prefix      = var.container_apps_subnet_prefix
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_subnet_network_security_group_association" "postgresql" {
+  subnet_id                 = var.postgresql_subnet_id
+  network_security_group_id = azurerm_network_security_group.postgresql.id
+}
